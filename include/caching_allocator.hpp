@@ -27,7 +27,7 @@ public:
     static std::size_t round_up(std::size_t size);
 
 private:
-    static constexpr std::size_t kAlignment = 512;
+    static constexpr std::size_t kRoundTo = 512;
 
     Stats stats_;
     std::map<std::size_t, std::vector<void*>> free_blocks_;

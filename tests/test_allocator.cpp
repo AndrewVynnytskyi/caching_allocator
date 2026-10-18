@@ -1,6 +1,10 @@
 #include "caching_allocator.hpp"
 #include <iostream>
+#include <limits>
+#include <new>
 #include <stdexcept>
+#include <utility>
+#include <vector>
 
 #include "buffer.hpp"
 
@@ -168,6 +172,17 @@ int test_buffers_in_vector() {
     return 0;
 }
 
+int test_huge_size_throws_bad_alloc() {
+    CachingAllocator alloc;
+    try {
+        alloc.allocate(std::numeric_limits<std::size_t>::max());
+    } catch (const std::bad_alloc&) {
+        return 0;
+    }
+    std::cerr << "FAIL: huge size did not throw bad_alloc\n";
+    return 1;
+}
+
 int main() {
     int failures = test_round_up() + test_reuses_freed_block() +
                    test_reuses_across_sizes_in_same_bucket() +
@@ -178,7 +193,8 @@ int main() {
                    test_buffer_returns_block_on_scope_exit() +
                    test_buffer_move_constructor_transfers_ownership() +
                    test_buffer_move_assignment_releases_old_block() +
-                   test_buffers_in_vector();
+                   test_buffers_in_vector() +
+                   test_huge_size_throws_bad_alloc();
     if (failures == 0) std::cout << "All tests passed\n";
     return failures == 0 ? 0 : 1;
 }

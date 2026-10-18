@@ -1,18 +1,23 @@
+#include "caching_allocator.hpp"
+#include "buffer.hpp"
 #include <iostream>
 
-// TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
-
 int main() {
-    // TIP Press <shortcut actionId="RenameElement"/> when your caret is at the <b>lang</b> variable name to see how CLion can help you rename it.
+    CachingAllocator alloc;
 
-    const auto lang = "C++";
-    std::cout << "Hello and welcome to " << lang << "!\n";
+    void* p = alloc.allocate(1000);   // rounded up to 1024, new malloc (miss)
+    alloc.deallocate(p);              // block goes into the cache
+    void* q = alloc.allocate(800);    // also 1024, reuses the cached block (hit)
+    alloc.deallocate(q);
 
-    for (int i = 1; i <= 5; i++) {
-        // TIP Press <shortcut actionId="Debug"/> to start debugging your code. We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
-        std::cout << "i = " << i << std::endl;
+    {
+        Buffer buf(alloc, 4096);      // returned to the cache at end of scope
+        // use buf.data(), buf.size()
     }
 
-    return 0;
-    // TIP See CLion help at <a href="https://www.jetbrains.com/help/clion/">jetbrains.com/help/clion/</a>. Also, you can try interactive lessons for CLion by selecting 'Help | Learn IDE Features' from the main menu.
+    Stats s = alloc.stats();
+    std::cout << "hits=" << s.hits << " misses=" << s.misses
+              << " cached=" << s.cached_bytes << "\n";
+
+    alloc.empty_cache();              // free all cached blocks
 }

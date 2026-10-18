@@ -2,13 +2,17 @@
 #include <new>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 
 
 std::size_t CachingAllocator::round_up(std::size_t size) {
-    size_t newSize = (size + kAlignment - 1)/ kAlignment * kAlignment;
+    if (size > std::numeric_limits<std::size_t>::max() - (kRoundTo - 1)) {
+        throw std::bad_alloc();  // size + kRoundTo - 1 would overflow
+    }
+    size_t newSize = (size + kRoundTo - 1)/ kRoundTo * kRoundTo;
     if (size == 0) {
-        return kAlignment;
+        return kRoundTo;
     }
     return newSize;
 }
