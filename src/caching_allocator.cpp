@@ -20,12 +20,17 @@ void *CachingAllocator::allocate(std::size_t size) {
     if (iterator != free_blocks_.end() && !iterator->second.empty()) {
         ptr = iterator->second.back();
         iterator->second.pop_back();
+        stats_.hits++;
+        stats_.cached_bytes -= rounded;
+        stats_.allocated_bytes += rounded;
     }
     else {
         ptr = std::malloc(rounded);
         if ( ptr == nullptr) {
             throw std::bad_alloc();
         }
+        stats_.misses++;
+        stats_.allocated_bytes += rounded;
     }
     allocated_[ptr] = rounded;
     return ptr;
@@ -38,8 +43,11 @@ void CachingAllocator::deallocate(void *ptr) {
 
     auto iterator = allocated_.find(ptr);
     if (iterator != allocated_.end()) {
-        free_blocks_[iterator->second].push_back(ptr);
+        size_t size = iterator->second;
+        free_blocks_[size].push_back(ptr);
         allocated_.erase(iterator);
+        stats_.cached_bytes += size;
+        stats_.allocated_bytes -= size;
     }
     else {
         throw std::invalid_argument("pointer was not allocated by this allocator or was already freed");
@@ -47,17 +55,28 @@ void CachingAllocator::deallocate(void *ptr) {
 }
 
 CachingAllocator::~CachingAllocator() {
-    for (auto& [size, blocks] : free_blocks_) {
-        for (void* block : blocks) {
-            free(block);
-        }
-    }
+    empty_cache();
     if (!allocated_.empty()) {
         std::cerr << "CachingAllocator: " << allocated_.size()
                   << " block(s) were never deallocated\n";
     }
     for (auto& [block, size] : allocated_) {
-            free(block);
+            std::free(block);
     }
-
 }
+
+void CachingAllocator::empty_cache() {
+    for (auto& [size, blocks] : free_blocks_) {
+        for (void* block : blocks) {
+            std::free(block);
+        }
+    }
+    free_blocks_.clear();
+    stats_.cached_bytes = 0;
+}
+
+Stats CachingAllocator::stats() const {
+    return stats_;
+}
+
+
