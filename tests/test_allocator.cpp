@@ -2,6 +2,8 @@
 #include <iostream>
 #include <stdexcept>
 
+#include "buffer.hpp"
+
 #define CHECK(cond)                                                      \
     do {                                                                 \
         if (!(cond)) {                                                   \
@@ -112,6 +114,59 @@ int test_foreign_pointer_throws() {
     return 1;
 }
 
+int test_buffer_returns_block_on_scope_exit() {
+    CachingAllocator alloc;
+    {
+        Buffer buf(alloc, 1000);
+        CHECK(buf.data() != nullptr);
+        CHECK(alloc.stats().allocated_bytes == 1024);
+    }  // тут викликається деструктор Buffer
+    CHECK(alloc.stats().allocated_bytes == 0);
+    CHECK(alloc.stats().cached_bytes == 1024);
+    return 0;
+}
+
+int test_buffer_move_constructor_transfers_ownership() {
+    CachingAllocator alloc;
+    {
+        Buffer a(alloc, 1000);
+        void* p = a.data();
+        Buffer b(std::move(a));
+        CHECK(b.data() == p);
+        CHECK(a.data() == nullptr);  // a більше нічим не володіє
+    }  // обидва деструктори, але блок повертається лише один раз
+    CHECK(alloc.stats().cached_bytes == 1024);
+    return 0;
+}
+
+int test_buffer_move_assignment_releases_old_block() {
+    CachingAllocator alloc;
+    {
+        Buffer a(alloc, 1000);   // 1024
+        Buffer b(alloc, 2000);   // 2048
+        void* pa = a.data();
+        b = std::move(a);
+        CHECK(b.data() == pa);
+        CHECK(a.data() == nullptr);
+        CHECK(alloc.stats().cached_bytes == 2048);  // старий блок b повернувся
+    }
+    CHECK(alloc.stats().cached_bytes == 1024 + 2048);
+    return 0;
+}
+
+int test_buffers_in_vector() {
+    CachingAllocator alloc;
+    {
+        std::vector<Buffer> buffers;
+        for (int i = 0; i < 10; ++i) {
+            buffers.emplace_back(alloc, 512);  // вектор розширюється і переміщує Buffer
+        }
+        CHECK(alloc.stats().allocated_bytes == 10 * 512);
+    }
+    CHECK(alloc.stats().allocated_bytes == 0);
+    CHECK(alloc.stats().cached_bytes == 10 * 512);
+    return 0;
+}
 
 int main() {
     int failures = test_round_up() + test_reuses_freed_block() +
@@ -119,7 +174,11 @@ int main() {
                    test_live_blocks_are_distinct() + test_double_free_throws() +
                    test_stats_track_allocations() +
                    test_empty_cache_frees_only_cached_blocks() +
-                   test_foreign_pointer_throws();
+                   test_foreign_pointer_throws() +
+                   test_buffer_returns_block_on_scope_exit() +
+                   test_buffer_move_constructor_transfers_ownership() +
+                   test_buffer_move_assignment_releases_old_block() +
+                   test_buffers_in_vector();
     if (failures == 0) std::cout << "All tests passed\n";
     return failures == 0 ? 0 : 1;
 }

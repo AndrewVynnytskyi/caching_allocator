@@ -4,7 +4,8 @@ project(caching_allocator CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_library(caching_allocator src/caching_allocator.cpp)
+add_library(caching_allocator src/caching_allocator.cpp
+            src/buffer.cpp)
 target_include_directories(caching_allocator PUBLIC include)
 
 add_executable(demo main.cpp)
