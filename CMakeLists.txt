@@ -16,3 +16,8 @@ add_executable(test_allocator tests/test_allocator.cpp)
 target_link_libraries(test_allocator PRIVATE caching_allocator)
 add_test(NAME test_allocator COMMAND test_allocator)
 
+if(MSVC)
+    target_compile_options(caching_allocator PRIVATE /W4)
+else ()
+    target_compile_options(caching_allocator PRIVATE -Wall -Wextra)
+endif ()
