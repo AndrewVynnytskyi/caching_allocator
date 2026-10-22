@@ -21,22 +21,37 @@ void *CachingAllocator::allocate(std::size_t size) {
     size_t rounded = round_up(size);
     auto iterator = free_blocks_.find(rounded);
     void* ptr;
+    bool from_cache = false;
     if (iterator != free_blocks_.end() && !iterator->second.empty()) {
         ptr = iterator->second.back();
-        iterator->second.pop_back();
-        stats_.hits++;
-        stats_.cached_bytes -= rounded;
-        stats_.allocated_bytes += rounded;
+        from_cache = true;
     }
     else {
         ptr = std::malloc(rounded);
         if ( ptr == nullptr) {
             throw std::bad_alloc();
         }
-        stats_.misses++;
-        stats_.allocated_bytes += rounded;
     }
-    allocated_[ptr] = rounded;
+
+    try {
+        allocated_.emplace(ptr, rounded);
+    } catch (...) {
+        if (!from_cache) {
+            std::free(ptr);
+        }
+        throw;
+    }
+
+    if (from_cache) {
+        iterator->second.pop_back();
+        stats_.hits++;
+        stats_.cached_bytes -= rounded;
+    }
+    else {
+        stats_.misses++;
+    }
+    stats_.allocated_bytes += rounded;
+
     return ptr;
 }
 
